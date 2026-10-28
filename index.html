@@ -1,0 +1,758 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VGM-X 예외관리 프로토타입</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+body{margin:0}img{max-width:100%}
+
+/* Layout: 교수님 목업(그림 2~4)과 같은 구성 — 좌측 네이비 사이드바 + 상단 헤더 + 카드형 작업 영역. 단일 라이트 테마로 고정 */
+:root{
+  color-scheme:light;
+  --bg:#f3f5f9; --card:#ffffff; --line:#e2e7ef; --line-2:#eef1f6;
+  --ink:#1b2433; --ink-2:#5b6576;
+  --nav:#0e2a52; --nav-2:#163a6b; --nav-ink:#c9d6ea;
+  --blue:#1a66e0; --blue-soft:#eaf2ff; --blue-line:#cfe0fb;
+  --red:#d23a2f; --red-soft:#fdecea;
+  --orange:#d9730d; --orange-soft:#fff2e2;
+  --green:#178a4a; --green-soft:#e6f5ec;
+  --yellow:#fff3c4; --yellow-line:#e9c64a;
+  --font:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh}
+.side{background:var(--nav);color:var(--nav-ink);display:flex;flex-direction:column;padding-block:22px 18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;gap:18px}
+.logo{display:flex;gap:10px;align-items:center}
+.logo i{width:30px;height:30px;border-radius:7px;background:#1f8ef1;color:#fff;font-style:normal;font-weight:700;font-size:13px;display:grid;place-items:center;flex:none}
+.logo b{display:block;color:#fff;font-size:19px;letter-spacing:.02em;line-height:1.1}
+.logo small{display:block;font-size:10px;letter-spacing:.12em;opacity:.8}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav .grp{font-size:11px;opacity:.6;margin:12px 10px 4px}
+.nb{background:none;border:0;color:inherit;text-align:left;padding:10px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px}
+.nb:hover{background:rgba(255,255,255,.06)}
+.nb[aria-current="page"]{background:var(--nav-2);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 #3d8cff}
+.nb .badge{background:#e5484d;color:#fff;font-size:11px;min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;font-weight:700}
+.nb .cnt{font-size:12px;opacity:.8}
+.side .foot{margin-top:auto;font-size:11.5px;opacity:.7;line-height:1.6;border-top:1px solid rgba(255,255,255,.12);padding-top:12px}
+main{min-width:0;display:flex;flex-direction:column}
+.head{background:var(--card);border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:14px;padding-left:24px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.head h1{margin:0;font-size:20px;font-weight:700}
+.head .ctx{color:var(--ink-2);font-size:13px;flex:1 1 160px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head .sp{flex:1}
+.tag-mock{background:var(--yellow);border:1px solid var(--yellow-line);color:#7a5a00;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+.search{border:1px solid var(--line);border-radius:8px;padding:8px 12px;width:min(280px,100%);font:inherit;font-size:13px;background:#f8fafc;color:var(--ink)}
+.user{display:flex;gap:8px;align-items:center;color:var(--ink-2);font-size:13px;white-space:nowrap}
+.user i{width:30px;height:30px;border-radius:50%;background:#e3ebf8;color:var(--nav);font-style:normal;font-weight:700;display:grid;place-items:center}
+.btn-reset{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--ink-2)}
+.wrap{padding-block:18px 32px;padding-left:24px;padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-width:0}
+.card h2{font-size:15.5px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h2 small{font-weight:400;color:var(--ink-2);font-size:12.5px}
+.card h2 .sp{flex:1}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.kpi.hot{border-color:#f2b8b3;box-shadow:inset 0 0 0 1px #f6cfcb}
+.kpi .lab{font-size:13px;color:var(--ink-2);font-weight:500}
+.kpi .val{font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .val small{font-size:14px;font-weight:500;color:var(--ink-2);margin-left:3px}
+.kpi .sub{font-size:12px;color:var(--ink-2)}
+.c-green{color:var(--green)} .c-red{color:var(--red)} .c-orange{color:var(--orange)} .c-blue{color:var(--blue)}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:999px}
+.chip.r{background:var(--red-soft);color:var(--red)} .chip.o{background:var(--orange-soft);color:var(--orange)} .chip.b{background:var(--blue-soft);color:var(--blue)} .chip.g{background:var(--green-soft);color:var(--green)}
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:12.5px;color:var(--ink-2);font-weight:500;text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);background:#f8fafc;white-space:nowrap}
+td{padding:11px 8px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr.q{cursor:pointer}
+tr.q:hover td{background:#f8fbff}
+tr.q.top td{background:#fff6f5}
+.score{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+.cn{font-family:var(--mono);font-weight:600;font-size:13px;white-space:nowrap}
+.cn-sub{font-size:12px;color:var(--ink-2)}
+.etag{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;margin:1px 0;white-space:nowrap}
+.etag.r{background:var(--red-soft);color:var(--red)} .etag.o{background:var(--orange-soft);color:var(--orange)} .etag.b{background:var(--blue-soft);color:var(--blue)} .etag.g{background:var(--green-soft);color:var(--green)}
+.st{font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.st.need{background:var(--red-soft);color:var(--red)} .st.draft{background:var(--orange-soft);color:var(--orange)} .st.rev{background:#fff4e0;color:#b9770e} .st.wait{background:var(--blue-soft);color:var(--blue)} .st.done{background:var(--green-soft);color:var(--green)}
+.left-r{color:var(--red);font-weight:700;white-space:nowrap} .left-n{white-space:nowrap}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px}
+.btn:hover{border-color:#b8c6dc}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.brief{background:#f2f8ff;border:1px solid var(--blue-line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.brief .t{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15.5px}
+.aitag{background:var(--blue);color:#fff;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:5px}
+.brief p{margin:0;font-size:13.5px;line-height:1.7}
+.tl{display:flex;flex-direction:column;gap:14px}
+.tl .row{display:grid;grid-template-columns:120px minmax(0,1fr) 52px;gap:10px;align-items:center}
+.tl .ex{font-size:12px;font-weight:700;color:var(--red);text-align:right;white-space:nowrap}
+.tl .nm b{display:block;font-size:13px}
+.tl .nm span{font-size:12px;color:var(--ink-2)}
+.bar{position:relative;height:22px;background:#dce8fb;border-radius:5px;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--blue)}
+.bar em{position:absolute;right:8px;top:2px;font-style:normal;font-size:12px;font-weight:700;color:var(--red)}
+.bar s{position:absolute;left:8px;top:2px;text-decoration:none;font-size:11.5px;font-weight:700;color:#fff}
+.dist{display:flex;flex-direction:column;gap:9px}
+.dist .row{display:grid;grid-template-columns:130px minmax(0,1fr) 28px;gap:10px;align-items:center;font-size:13px}
+.dist .b{height:9px;background:var(--blue);border-radius:5px}
+.dist .b.l{background:#9db9ea}
+.dist .n{text-align:right;font-variant-numeric:tabular-nums}
+.chead{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.chead .big{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:.02em}
+.chead .meta{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13px;color:var(--ink-2);width:100%}
+.chead .meta b{color:var(--ink)}
+.risk{margin-left:auto;text-align:right}
+.risk small{display:block;font-size:12px;color:var(--ink-2);font-weight:700}
+.risk b{display:block;font-size:34px;line-height:1.1}
+.risk span{font-size:11.5px;color:var(--ink-2)}
+.cgrid{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;align-items:start}
+.mx td,.mx th{padding:9px 10px}
+.mx td:first-child{font-weight:700;white-space:nowrap}
+.mx .j{font-weight:700}
+.mx{font-size:12.5px}
+.mx td:last-child{min-width:96px}
+.box-r{outline:2px solid var(--red);outline-offset:-1px;border-radius:6px;padding:2px 5px}
+.box-b{outline:2px solid var(--blue);outline-offset:-1px;border-radius:6px;padding:2px 5px}
+.pill-r{background:var(--red-soft);color:var(--red);font-weight:700;border-radius:5px;padding:2px 6px}
+.sum3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.sum3 div{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.sum3 div.warn{border-color:#f2b8b3;background:#fff8f7}
+.sum3 small{display:block;font-size:12px;color:var(--ink-2)}
+.sum3 b{display:block;font-size:24px;margin-block:2px}
+.sum3 span{font-size:12px;color:var(--ink-2)}
+.doc{border:1px solid var(--line);border-radius:8px;padding:14px 16px;font-size:13px;display:flex;flex-direction:column;gap:7px;background:#fcfdff}
+.doc .tt{text-align:center;font-weight:700;letter-spacing:.5em;font-size:15px;margin-bottom:4px}
+.doc .ln{display:flex;justify-content:space-between;gap:10px;align-items:center;border-bottom:1px dashed var(--line-2);padding-bottom:5px}
+.doc .ft{font-size:11.5px;color:var(--ink-2)}
+.why{background:#f2f8ff;border:1px solid var(--blue-line);border-radius:12px;padding:16px 18px}
+.why ul{margin:8px 0 10px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.65}
+.why .rule{font-size:12px;color:var(--ink-2);border-top:1px solid var(--blue-line);padding-top:8px;line-height:1.6}
+.agrid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) 330px;gap:16px;align-items:start}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;color:var(--ink-2)}
+.tab[aria-selected="true"]{background:var(--nav);color:#fff;border-color:var(--nav)}
+.mail{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.mail .hdr{display:grid;grid-template-columns:72px minmax(0,1fr);font-size:13px}
+.mail .hdr div{padding:8px 12px;border-bottom:1px solid var(--line-2)}
+.mail .hdr div:nth-child(odd){background:#f8fafc;color:var(--ink-2)}
+.mail .body{padding:14px;font-size:13.5px;line-height:1.85;white-space:pre-wrap}
+.mail textarea{display:block;width:100%;min-height:300px;border:0;padding:14px;font:inherit;font-size:13.5px;line-height:1.8;resize:vertical;color:var(--ink);background:#fffdf5}
+mark{background:#fff0a8;padding:0 2px}
+.att{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 14px}
+.att span{border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12px;background:#f8fafc}
+.afoot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-top:14px}
+.afoot .note{font-size:12px;color:var(--ink-2);text-align:right}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.steps li{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;padding-bottom:14px;position:relative}
+.steps li::before{content:"";position:absolute;left:10px;top:22px;bottom:0;width:2px;background:var(--line)}
+.steps li:last-child::before{display:none}
+.dot{width:20px;height:20px;border-radius:50%;border:2px solid #b7c2d2;background:var(--card);margin-top:1px}
+.dot.ok{background:var(--green);border-color:var(--green)}
+.dot.now{background:var(--blue);border-color:var(--blue)}
+.steps small{display:block;font-size:12px;color:var(--ink-2);font-weight:700}
+.steps p{margin:2px 0 0;font-size:13px}
+.guard{border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--ink-2);margin-top:6px;line-height:1.6}
+.phone{background:#0f1f3a;border-radius:30px;padding:10px;max-width:290px;margin-inline:auto}
+.phone .scr{background:#1f3a66;border-radius:22px;padding:22px 12px 16px;display:flex;flex-direction:column;gap:10px;min-height:470px}
+.phone .clk{color:#fff;text-align:center;font-size:44px;font-weight:300;line-height:1}
+.phone .dt{color:#c9d6ea;text-align:center;font-size:13px;margin-bottom:6px}
+.nt{background:#fff;color:var(--ink);border-radius:12px;padding:9px 11px;font-size:12px;line-height:1.5}
+.nt .h{display:flex;gap:6px;align-items:center;color:var(--ink-2);font-size:11px}
+.nt .h i{width:15px;height:15px;border-radius:4px;background:#1f8ef1;color:#fff;font-style:normal;font-size:8px;font-weight:700;display:grid;place-items:center}
+.nt b{display:block;font-size:12.5px;margin-top:2px}
+.xgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.note-s{font-size:12px;color:var(--ink-2);margin-top:10px;line-height:1.6}
+.ok-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px}
+.warn-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--orange);margin-right:6px}
+.off-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#b7c2d2;margin-right:6px}
+.conn{display:flex;flex-direction:column;gap:6px}
+.conn b{font-size:14px}
+.conn span{font-size:12.5px;color:var(--ink-2)}
+.trend{display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:10px}
+.trend div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--ink-2)}
+.trend i{display:block;width:100%;max-width:38px;background:var(--blue);border-radius:4px 4px 0 0}
+.trend div.today i{background:var(--red)}
+.trend b{font-size:12px;color:var(--ink)}
+.toast{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:#1b2433;color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;max-width:min(380px,calc(100vw - 32px));z-index:30}
+@media (max-width:1280px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.dgrid,.cgrid{grid-template-columns:minmax(0,1fr)}.agrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{padding-block:12px;padding-right:max(16px,env(safe-area-inset-right,0px));gap:10px}
+  .nav{flex-direction:row;overflow-x:auto}
+  .nav .grp,.side .foot{display:none}
+  .nb{white-space:nowrap}
+  .head,.wrap{padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .agrid,.sum3{grid-template-columns:minmax(0,1fr)}
+  .risk{margin-left:0;text-align:left}
+}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <aside class="side">
+    <div class="logo"><i>VX</i><div><b>VGM-X</b><small>INTELLIGENT EXCEPTION LAYER</small></div></div>
+    <nav class="nav" aria-label="VGM-X 메뉴">
+      <button class="nb" data-view="dash" id="nav-dash">예외관리 대시보드 <span class="badge" id="nav-cnt">7</span></button>
+      <button class="nb" data-view="case" id="nav-case">건별 교차대조</button>
+      <button class="nb" data-view="act" id="nav-act">후속조치 · 이력</button>
+      <button class="nb extra" data-view="cal" id="nav-cal">마감 캘린더</button>
+      <div class="grp">문서</div>
+      <button class="nb extra" data-view="inbox" id="nav-inbox">수신 문서함 <span class="cnt">128</span></button>
+      <button class="nb extra" data-view="policy" id="nav-policy">선사별 VGM 정책</button>
+      <div class="grp">분석</div>
+      <button class="nb extra" data-view="kpi" id="nav-kpi">예외 통계 · KPI</button>
+      <button class="nb extra" data-view="fb" id="nav-fb">AI 피드백 관리</button>
+      <button class="nb extra" data-view="link" id="nav-link">연계 설정 (ERP · EDI)</button>
+    </nav>
+    <div class="foot">한빛로지스(가상) · 수출서류팀<br>기존 제출채널: 선사 포털 · EDI(VERMAS)<br><br>공모전 시연용 프로토타입 · 업체·선박·화물 정보는 모두 가상 데이터입니다.</div>
+  </aside>
+
+  <main>
+    <header class="head">
+      <h1 id="h-title">예외관리 대시보드</h1>
+      <span class="ctx" id="h-ctx"></span>
+      <span class="tag-mock" title="판정은 이 페이지에서 실제 규칙으로 계산하고, AI 설명·메일 문장은 예시입니다">시연 · 예시 데이터</span>
+      <input class="search" id="search" type="search" placeholder="컨테이너·부킹번호·화주 검색" aria-label="검색">
+      <button class="btn-reset" id="btn-reset" title="모든 조치를 지우고 처음 상태로">처음 상태로</button>
+      <span class="user"><i>김</i>수출서류팀 김○○</span>
+    </header>
+
+    <div class="wrap" id="v-dash">
+      <div class="kpis" id="kpis"></div>
+      <div class="dgrid">
+        <section class="card">
+          <h2>예외 큐 <small>위험도 순 · AI가 근거와 함께 선별한 건만 표시</small><span class="sp"></span>
+            <button class="btn" id="btn-filter">필터: 전체 선사</button><button class="btn" id="btn-sort">유형별 보기</button></h2>
+          <div class="tw"><table id="queue"></table></div>
+          <div style="font-size:12.5px;color:var(--ink-2);margin-top:10px" id="q-foot"></div>
+        </section>
+        <div class="col">
+          <section class="brief" id="brief"></section>
+          <section class="card">
+            <h2>VGM 마감 타임라인 <small>오늘~내일 · 파란색 = 정합성 확인 완료</small></h2>
+            <div class="tl" id="tl"></div>
+          </section>
+          <section class="card">
+            <h2>예외 유형 분포 <small>최근 7일 · 예시 통계</small></h2>
+            <div class="dist" id="dist"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap" id="v-case" hidden>
+      <section class="card"><div class="chead" id="chead"></div></section>
+      <div class="cgrid">
+        <section class="card">
+          <h2>4개 문서 필드 비교 매트릭스 <small>문서 AI 자동 추출 · 표시된 칸은 원문 근거와 연결</small></h2>
+          <div class="tw"><table class="mx" id="mx"></table></div>
+          <div class="sum3" id="sum3"></div>
+        </section>
+        <div class="col">
+          <section class="card">
+            <h2>원문 근거 <small id="doc-cap"></small></h2>
+            <div id="doc"></div>
+          </section>
+          <section class="why">
+            <div style="display:flex;gap:8px;align-items:center;font-weight:700;font-size:15.5px"><span class="aitag">AI 설명</span>왜 예외인가</div>
+            <ul id="why"></ul>
+            <div class="rule" id="why-rule"></div>
+            <div class="btns" style="margin-top:12px">
+              <button class="btn pri" id="go-act">후속조치 초안 보기</button>
+              <button class="btn" id="btn-tp">정탐으로 표시</button>
+              <button class="btn" id="btn-fp">오탐으로 표시</button>
+              <button class="btn" id="btn-assign">담당자 지정</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap" id="v-act" hidden>
+      <div class="agrid">
+        <section class="card">
+          <h2><span class="aitag">AI 초안</span>후속조치 문서 초안 <small>승인 전에는 발송·제출되지 않음</small></h2>
+          <div class="tabs" role="tablist" id="tabs"></div>
+          <div class="mail" id="mail"></div>
+          <div class="afoot">
+            <div class="btns">
+              <button class="btn pri" id="btn-send">승인 후 발송</button>
+              <button class="btn" id="btn-edit">직접 수정</button>
+              <button class="btn" id="btn-hold">보류</button>
+            </div>
+            <div class="note">미회신 시 11:30 전화 알림<br>12:00 영업 담당 에스컬레이션</div>
+          </div>
+        </section>
+        <section class="card">
+          <h2>조치 이력 타임라인 <small>감사 로그 자동 보존</small></h2>
+          <ul class="steps" id="steps"></ul>
+          <div class="guard">AI는 VGM 값을 직접 변경·제출하지 않습니다. 정정값 확정과 서명은 화주, 제출은 담당자 승인 후 기존 채널로 진행됩니다.</div>
+        </section>
+        <section class="card">
+          <h2>모바일 알림 <small>마감 리스크 경보</small></h2>
+          <div class="phone"><div class="scr" id="phone"></div></div>
+        </section>
+      </div>
+    </div>
+    <div class="wrap" id="v-extra" hidden></div>
+  </main>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+(function(){
+"use strict";
+/* ===== ISO 6346 체크디지트 ===== */
+const LV={};(function(){let v=10;for(const c of "ABCDEFGHIJKLMNOPQRSTUVWXYZ"){if(v%11===0)v++;LV[c]=v++;}})();
+const cdig=s=>{let t=0;for(let i=0;i<10;i++){const c=s[i];t+=(/\d/.test(c)?+c:LV[c])*2**i;}return t%11%10;};
+const valid=n=>/^[A-Z]{4}\d{7}$/.test(n)&&cdig(n.slice(0,10))===+n[10];
+const mk=(o,ser)=>{const b=o+String(ser).padStart(6,"0");return b+cdig(b);};
+const sp=n=>n?n.slice(0,4)+" "+n.slice(4,10)+" "+n.slice(10):"—";
+const f=n=>n==null?"—":Number(n).toLocaleString("ko-KR");
+const kg=n=>f(n)+"kg";
+const MAXG=30480;
+
+/* ===== 가상 데이터 (기획서 목업 그림 2~4와 같은 값) ===== */
+const NOW=new Date("2026-10-07T08:30:00+09:00");
+const V={
+  HP:{name:"HANBIT PIONEER",voy:"0412E",cut:"2026-10-07T14:00:00+09:00",total:46},
+  SA:{name:"SEA AURORA",voy:"2611W",cut:"2026-10-07T14:00:00+09:00",total:38},
+  BH:{name:"BLUE HARMONY",voy:"108N",cut:"2026-10-08T12:30:00+09:00",total:44}
+};
+const vName=v=>v.name+" "+v.voy;
+const hLeft=(v,at)=>(new Date(v.cut)-(at||NOW))/36e5;
+const leftTxt=h=>h>=24?`${Math.floor(h/24)}d ${Math.floor(h%24)}h`:`${Math.floor(h)}h ${String(Math.round((h%1)*60)).padStart(2,"0")}m`;
+const cutTxt=v=>{const d=new Date(v.cut);const same=d.getDate()===NOW.getDate();return (same?"":"익일 ")+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+
+function seedCases(){return [
+ {no:1,score:92,conf:.94,v:V.HP,type:"40HC",bk:"KBX-26-100482",cntr:"TSTU4821173",shipper:"㈜가람전자(가상)",est:20000,pl:19850,lash:120,tare:3750,
+  ticket:{gross:34900,truck:11180,at:"2026-10-06 19:42"},vgm:{cntr:"TSTU4821173",value:34900,method:"방법1",signer:"박○○ 과장",at:"10.06 21:05",ver:1},latest:1,submitted:true,status:"need",
+  sum:"VGM 34,900kg = 계근표 '총중량'(차량 포함). 차량공차 차감 시 23,720kg으로 PL 산정값과 일치"},
+ {no:2,score:88,conf:.97,v:V.HP,type:"20GP",bk:"KBX-26-100517",cntr:"TSTU6155097",shipper:"㈜새길산업(가상)",est:18000,pl:15400,lash:80,tare:2200,
+  ticket:{gross:28640,truck:10960,at:"2026-10-06 17:15"},vgm:{cntr:"TSTU6155092",value:17680,method:"방법1",signer:"최○○ 대리",at:"10.06 18:40",ver:1},latest:1,submitted:true,status:"draft",
+  sum:"VGM 신고서 체크디지트 오류(2→7). Booking·계근표는 TSTU 615509 7"},
+ {no:3,score:81,conf:.89,v:V.SA,type:"40GP",bk:"KBX-26-100533",cntr:"TSTU5308720",shipper:"㈜온누리식품(가상)",est:21500,pl:21300,lash:150,tare:3700,
+  ticket:{gross:36200,truck:11050,at:"2026-10-06 20:10"},vgm:{cntr:"",value:null,method:"",signer:"",at:"",ver:0},latest:0,submitted:false,status:"need",lateRisk:true,
+  sum:"계근 완료 후 VGM 미작성. 화주 서명 회신 평균 4.1h → 마감 초과 예측"},
+ {no:4,score:64,conf:.86,v:V.SA,type:"40HC",bk:"KBX-26-100541",cntr:"TSTU6012455",shipper:"㈜푸른화학(가상)",est:19000,pl:18600,lash:140,tare:3750,
+  ticket:null,vgm:{cntr:"TSTU6012455",value:18740,method:"방법2",signer:"정○○ 차장",at:"10.06 16:20",ver:1},latest:1,submitted:true,status:"rev",lateRisk:true,
+  sum:"방법2 산정에 공컨테이너 중량(Tare) 미반영 의심(−3,750kg)"},
+ {no:5,score:58,conf:.78,v:V.BH,type:"20GP",bk:"KBX-26-100550",cntr:"TSTU3771904",shipper:"㈜한결소재(가상)",est:20000,pl:25300,lash:100,tare:2250,
+  ticket:null,vgm:{cntr:"TSTU3771904",value:27650,method:"방법2",signer:"윤○○ 과장",at:"10.06 15:05",ver:1},latest:1,submitted:true,status:"rev",hist:{avg:20040,n:30,pct:"상위 1%"},
+  sum:"동일 화주·품목 최근 30건 대비 +38% (상위 1%)"},
+ {no:6,score:52,conf:.91,v:V.BH,type:"40HC",bk:"KBX-26-100558",cntr:"TSTU4488210",shipper:"㈜다온테크(가상)",est:22000,pl:21700,lash:160,tare:3800,
+  ticket:null,vgm:{cntr:"TSTU4488210",value:25660,method:"방법2",signer:"한○○ 대리",at:"10.06 14:30",ver:1},latest:2,submitted:true,status:"rev",
+  sum:"정정본(v2) 수신, 선사 포털에는 v1 제출 상태"},
+ {no:7,score:31,conf:.95,v:V.BH,type:"20GP",bk:"KBX-26-100562",cntr:"TSTU7023161",shipper:"㈜새봄기계(가상)",est:14000,pl:13900,lash:90,tare:2230,
+  ticket:null,vgm:{cntr:"TSTU7023161",value:16220,method:"방법2",signer:"(성명 공란) 과장",at:"10.06 13:55",ver:1},latest:1,submitted:true,status:"wait",
+  sum:"서명권자 성명 공란(직위만 기재)"}
+];}
+let CASES=[], NORMAL=[], current=null, view="dash", filterIdx=0, sortByType=false, query="";
+function seedNormal(){
+  let r=20261007; const R=()=>(r=(r*1664525+1013904223)%4294967296)/4294967296;
+  NORMAL=[]; const plan=[[V.HP,44],[V.SA,36],[V.BH,41]];
+  for(const [v,n] of plan) for(let k=0;k<n;k++){
+    const type=R()<.55?"40HC":(R()<.5?"40GP":"20GP");
+    NORMAL.push({v,type,cntr:mk("TSTU",100000+Math.floor(R()*899999))});
+  }
+}
+function reset(){
+  CASES=seedCases(); seedNormal();
+  CASES.forEach(c=>{c.log=[];c.fb=null;c.sent=false;c.replied=false;c.resolved=false;c.held=false;c.tab=0;c.edit=null;c.viewed=false;c.origCodes=null;});
+  current=CASES[0];
+}
+
+/* ===== 규칙 엔진 (판정은 실제 계산) ===== */
+const NAMES={E1:"식별정보",E2:"중량 불일치",E3:"산정 누락",E4:"계근표 해석",E5:"이상 중량",E6:"서명 누락",E7:"마감 리스크",E8:"버전 충돌"};
+const FULL={E1:"식별정보 불일치",E2:"중량 불일치",E3:"산정 누락",E4:"계근표 해석 오류",E5:"이상 중량",E6:"검증방법·서명 누락",E7:"마감 리스크",E8:"버전 충돌"};
+const recompute=c=>c.ticket?{v:c.ticket.gross-c.ticket.truck,how:`${f(c.ticket.gross)} − ${f(c.ticket.truck)}`,base:"방법1 기준"}:{v:c.pl+c.tare+c.lash,how:`${f(c.pl)} + ${f(c.tare)} + ${f(c.lash)}`,base:"방법2 기준"};
+const cross=c=>c.pl+c.tare+c.lash;
+function evaluate(c){
+  if(c.resolved) return [];
+  const out=[];
+  if(!c.submitted){ if(hLeft(c.v)<8) out.push("E7"); return out; }
+  if(c.vgm.cntr!==c.cntr||!valid(c.vgm.cntr)) out.push("E1");
+  const rv=recompute(c).v, dev=(c.vgm.value-rv)/rv;
+  if(c.ticket&&c.vgm.value===c.ticket.gross) out.push("E4");
+  const e3=!c.ticket&&Math.abs(c.vgm.value-(c.pl+c.lash))<=c.vgm.value*0.01;
+  if(e3) out.push("E3");
+  if(!e3&&(Math.abs(dev)>0.05||c.vgm.value>MAXG)) out.push("E2");
+  if((c.hist&&Math.abs(c.vgm.value-c.hist.avg)/c.hist.avg>0.3)||(!/^20/.test(c.type)&&c.vgm.value<10000)) out.push("E5");
+  if(!c.vgm.method||!c.vgm.signer||/공란/.test(c.vgm.signer)) out.push("E6");
+  if(c.latest>c.vgm.ver) out.push("E8");
+  return out;
+}
+const sevOf=s=>s>=80?"red":s>=50?"orange":"blue";
+const tagCls=k=>["E3","E5","E8"].includes(k)?"o":k==="E6"?"b":"r";
+function exceptions(){return CASES.filter(c=>evaluate(c).length);}
+
+/* ===== 공통 ===== */
+const $=id=>document.getElementById(id);
+const FILTERS=[null,V.HP,V.SA,V.BH];
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>{t.hidden=true;},2800);}
+const STATUS={need:["need","조치 필요"],draft:["draft","초안 생성됨"],rev:["rev","검토 중"],wait:["wait","대기"],sent:["wait","회신 대기"],hold:["rev","보류"],done:["done","종결"]};
+const statusOf=c=>c.resolved?"done":c.sent?"sent":c.held?"hold":c.status;
+
+/* ===== 대시보드 ===== */
+function renderDash(){
+  const ex=exceptions();
+  const done=CASES.filter(c=>c.resolved).length, pass=NORMAL.length, total=NORMAL.length+CASES.length;
+  const hi=ex.filter(c=>c.score>=80).length, mid=ex.filter(c=>c.score>=50&&c.score<80).length, lo=ex.filter(c=>c.score<50).length;
+  const late=CASES.filter(c=>!c.resolved&&c.lateRisk);
+  $("nav-cnt").textContent=ex.length; $("nav-cnt").hidden=!ex.length;
+  $("kpis").innerHTML=`
+   <div class="kpi"><span class="lab">오늘 처리 대상 VGM</span><span class="val">${total}<small>건</small></span><span class="sub">밤사이 수신 문서 412개 자동 인식</span></div>
+   <div class="kpi"><span class="lab">AI 자동 통과</span><span class="val c-green">${pass}<small>건</small></span><span class="sub">4개 문서 정합성 모두 일치${done?` · 조치 후 종결 ${done}건`:""}</span></div>
+   <div class="kpi hot"><span class="lab">예외 선별</span><span class="val c-red">${ex.length}<small>건</small></span><span class="chips">${hi?`<span class="chip r">고 ${hi}</span>`:""}${mid?`<span class="chip o">중 ${mid}</span>`:""}${lo?`<span class="chip b">저 ${lo}</span>`:""}${ex.length?"":`<span class="chip g">모두 처리</span>`}</span></div>
+   <div class="kpi"><span class="lab">마감 6시간 내 미제출 예측</span><span class="val c-orange">${late.length}<small>건</small></span><span class="sub">${late.length?`${vName(late[0].v)} · ${cutTxt(late[0].v)} 마감`:"해당 없음"}</span></div>
+   <div class="kpi"><span class="lab">건당 평균 검토시간</span><span class="val">2.4<small>분</small></span><span class="sub">예외 건만 검토 (PoC 측정 지표 · 예시)</span></div>`;
+  let rows=ex.filter(c=>!FILTERS[filterIdx]||c.v===FILTERS[filterIdx]);
+  if(query){const q=query.toLowerCase().replace(/\s/g,"");rows=rows.filter(c=>(c.cntr+c.bk+c.shipper+c.v.name).toLowerCase().replace(/\s/g,"").includes(q));}
+  rows=rows.slice().sort(sortByType?((a,b)=>evaluate(a)[0].localeCompare(evaluate(b)[0])||b.score-a.score):((a,b)=>b.score-a.score));
+  $("queue").innerHTML=`<thead><tr><th>위험</th><th>컨테이너 / 부킹</th><th>선명·항차</th><th>예외 유형</th><th>AI 요약</th><th>마감까지</th><th>상태</th></tr></thead><tbody>${
+    rows.length?rows.map((c,i)=>{const h=hLeft(c.v);const s=STATUS[statusOf(c)];return `<tr class="q ${i===0&&!sortByType&&!filterIdx&&!query?"top":""}" data-no="${c.no}" tabindex="0">
+      <td><span class="score c-${sevOf(c.score)}">${c.score}</span></td>
+      <td><div class="cn">${sp(c.submitted&&!c.resolved?c.vgm.cntr:c.cntr)}</div><div class="cn-sub">${c.bk} · ${c.type}</div></td>
+      <td>${c.v.name}<br><span class="cn-sub">${c.v.voy}</span></td>
+      <td>${evaluate(c).map(k=>`<span class="etag ${tagCls(k)}">${k} ${NAMES[k]}</span>`).join("<br>")}</td>
+      <td style="min-width:170px">${c.sum}</td>
+      <td class="${h<8?"left-r":"left-n"}">${leftTxt(h)}</td>
+      <td><span class="st ${s[0]}">${s[1]}</span></td></tr>`;}).join("")
+    :`<tr><td colspan="7" style="color:var(--ink-2)">${ex.length?"검색·필터 조건에 맞는 예외가 없습니다.":"남은 예외가 없습니다. 오늘 마감분 정합성 확인이 끝났습니다."}</td></tr>`}</tbody>`;
+  $("q-foot").textContent=`자동 통과 ${pass}건${done?`과 조치 후 종결된 ${done}건`:""}은 목록에서 숨겼습니다. 통과 건의 대조 근거도 이력에 보존됩니다.`;
+  document.querySelectorAll("tr.q").forEach(tr=>{const go=()=>openCase(+tr.dataset.no);tr.onclick=go;tr.onkeydown=e=>{if(e.key==="Enter")go();};});
+  const top=ex.slice().sort((a,b)=>b.score-a.score), hiC=top.filter(c=>c.score>=80);
+  const draftCases=CASES.filter(c=>!c.resolved&&!c.sent&&evaluate(c).some(k=>["E1","E2","E4"].includes(k)));
+  $("brief").innerHTML=`<div class="t"><span class="aitag">AI 브리핑</span>오늘의 우선순위</div>`+(top.length?
+    `<p>${hiC.length?`고위험 ${hiC.length}건은 모두 <b>${[...new Set(hiC.map(c=>c.v.name+"("+cutTxt(c.v)+" 마감)"))].join(" · ")}</b> 건입니다. `:""}1순위 <b>${sp(top[0].cntr)}</b>${evaluate(top[0]).includes("E4")?`은 <b>차량중량 미차감</b> 패턴이며${top[0].vgm.value>MAXG?` ${top[0].type} 최대총중량도 초과합니다`:" 재산정값과 차이가 큽니다"}`:`은 ${FULL[evaluate(top[0])[0]]} 건입니다`}.${draftCases.length?` 화주 정정요청 초안 ${draftCases.length}건을 준비했습니다.`:""} <span style="color:var(--ink-2);font-size:12px">· 예시 문장</span></p>
+    <div class="btns"><button class="btn pri" id="b-open">1순위 건 열기</button>${draftCases.length?`<button class="btn" id="b-draft">초안 ${draftCases.length}건 검토</button>`:""}</div>`
+    :`<p>남은 예외가 없습니다. 오늘 마감분은 모두 정합성 확인 또는 조치가 끝났습니다.</p>`);
+  if($("b-open")) $("b-open").onclick=()=>openCase(top[0].no);
+  if($("b-draft")) $("b-draft").onclick=()=>{setCurrent(draftCases[0]);show("act");};
+  $("tl").innerHTML=Object.values(V).map(v=>{
+    const n=CASES.filter(c=>c.v===v&&evaluate(c).length).length;
+    const okN=v.total-n;
+    return `<div class="row"><div class="nm"><b>${v.name}</b><span>${cutTxt(v)} 마감 · ${v.total}건</span></div>
+      <div class="bar" role="img" aria-label="${v.total}건 중 ${okN}건 확인 완료, 예외 ${n}건"><i style="width:${okN/v.total*100}%"></i><s>${okN}/${v.total}</s></div><span class="ex">${n?`예외 ${n}`:""}</span></div>`;}).join("");
+  const D=[["E2 중량 불일치",14],["E7 마감 리스크",11],["E1 식별정보 불일치",9],["E4 계근표 해석 오류",6],["E8 버전 충돌",5],["E3·E5·E6 기타",7]];
+  $("dist").innerHTML=D.map((d,i)=>`<div class="row"><span>${d[0]}</span><span class="b ${i===5?"l":""}" style="width:${d[1]/14*100}%"></span><span class="n">${d[1]}</span></div>`).join("");
+}
+
+/* ===== 건별 교차대조 ===== */
+function renderCase(){
+  const c=current; c.viewed=true;
+  const ev=evaluate(c), rv=recompute(c), cr=cross(c), has=k=>ev.includes(k);
+  const dev=c.submitted?(c.vgm.value-rv.v)/rv.v*100:null;
+  const tags=ev.map(k=>`<span class="etag ${tagCls(k)}">${k} ${FULL[k]}</span>`);
+  if(!c.resolved&&c.submitted&&c.vgm.value>MAXG) tags.push(`<span class="etag r">최대총중량 초과</span>`);
+  if(c.resolved) tags.push(`<span class="etag g">예외 종결</span>`);
+  $("h-ctx").textContent=`예외관리 대시보드 › 예외 #E-20261007-00${c.no}`;
+  const hl=hLeft(c.v);
+  $("chead").innerHTML=`<span class="big">${sp(c.cntr)}</span><span class="chips" style="gap:6px">${tags.join("")}</span>
+    <div class="risk"><small>AI 위험도</small><b class="c-${c.resolved?"green":sevOf(c.score)}">${c.resolved?"0":c.score}</b><span>신뢰도 ${c.conf.toFixed(2)}</span></div>
+    <div class="meta"><span>부킹 <b>${c.bk}</b></span><span>${c.type.slice(0,2)}' ${c.type.slice(2)} · 최대총중량 <b>${f(MAXG)}kg</b></span><span>선명·항차 <b>${vName(c.v)}</b></span><span>화주 <b>${c.shipper}</b></span><span>VGM 마감 <b class="${hl<8?"c-red":""}">${hl<24?"오늘":"내일"} ${cutTxt(c.v).replace("익일 ","")} (${leftTxt(hl)})</b></span></div>`;
+  const J=(t,cls)=>`<span class="j c-${cls}">${t}</span>`;
+  const tk=c.ticket;
+  const cnOK=c.submitted?(c.vgm.cntr===c.cntr&&valid(c.vgm.cntr)):true;
+  const badW=has("E2")||has("E3")||has("E4");
+  const rows=[
+    ["컨테이너 번호",c.cntr,"—",tk?c.cntr:"—",c.submitted?(cnOK?c.vgm.cntr:`<span class="pill-r">${c.vgm.cntr}</span>`):"미작성",
+      !c.submitted?J("신고서 미작성","red"):cnOK?J("일치 · 체크디지트 정상","green"):J(`불일치 · 체크디지트 오류(${c.vgm.cntr[10]}→${cdig(c.vgm.cntr.slice(0,10))})`,"red")],
+    ["부킹번호",c.bk,c.bk,"—",c.submitted?c.bk:"—",J("일치","green")],
+    ["컨테이너 타입",c.type,"—",tk?c.type:"—",c.submitted?c.type:"—",J("일치","green")],
+    ["화물 총중량 (포장 포함)",`약 ${f(c.est)}kg (예상)`,kg(c.pl),"—","—",J("참고","blue")],
+    ["공컨테이너 중량 (Tare)",!c.submitted?`${kg(c.tare)} (반출 정보)`:"—","—","—",!c.submitted?"미작성":has("E3")?`<span class="pill-r">합산 안 됨</span>`:`${kg(c.tare)} (CSC 플레이트)`,has("E3")?J("누락 의심","red"):J("확인","green")],
+    ["고박·포장재","—",kg(c.lash),"—","—",J("확인","green")],
+    ["계근 총중량 (차량 포함)","—","—",tk?(has("E4")?`<span class="box-r">${kg(tk.gross)}</span>`:kg(tk.gross)):"방법2 (계근 없음)","—",tk?(has("E4")?J("해석 필요","orange"):J("참고","blue")):J("—","blue")],
+    ["차량·섀시 공차중량","—","—",tk?(has("E4")?`<span class="box-b">${kg(tk.truck)}</span>`:kg(tk.truck)):"—","—",tk?(has("E4")?J("차감 대상","orange"):J("차감 확인","green")):J("—","blue")],
+    ["VGM 신고값","—","—","—",c.submitted?(badW?`<span class="pill-r">${kg(c.vgm.value)}</span>`:kg(c.vgm.value)):"미작성",
+      !c.submitted?J("미작성","red"):badW?J(`불일치 ${dev>0?"+":""}${dev.toFixed(1)}%`,"red"):has("E5")?J(`이력 대비 +${Math.round((c.vgm.value-c.hist.avg)/c.hist.avg*100)}%`,"orange"):J(`일치 ${dev>0?"+":""}${dev.toFixed(1)}%`,"green")],
+    ["검증방법","—","—",tk?"방법1 계근":"—",c.submitted?(c.vgm.method||"미기재"):"—",!c.submitted?J("—","blue"):c.vgm.method?J("일치","green"):J("누락","red")],
+    ["서명권자 / 제출일시","—","—",tk?tk.at.slice(5).replace("-",".")+" 계근":"—",c.submitted?`${has("E6")?`<span class="pill-r">${c.vgm.signer}</span>`:c.vgm.signer} / ${c.vgm.at}${c.latest>1||c.vgm.ver>1?` (v${c.vgm.ver})`:""}`:"서명 회신 대기",
+      !c.submitted?J("회신 지연 예측","red"):has("E6")?J("성명 공란","red"):has("E8")?J(`버전 충돌 v${c.vgm.ver}/v${c.latest}`,"orange"):J("정상","green")]
+  ];
+  $("mx").innerHTML=`<thead><tr><th>항목</th><th>Booking 확인서</th><th>Packing List</th><th>계근표</th><th>VGM 신고서</th><th>판정</th></tr></thead><tbody>${rows.map(r=>`<tr>${r.map((x,i)=>`<td class="${i>0&&i<5&&/\d/.test(String(x))&&!/[<가-힣]/.test(String(x).replace(/kg/g,""))?"mono":""}">${x}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  const crDiff=(cr-rv.v)/rv.v*100, over=c.submitted&&Math.abs(dev)>5;
+  $("sum3").innerHTML=`<div><small>AI 재산정 VGM (${rv.base})</small><b>${kg(rv.v)}</b><span>${rv.how}</span></div>
+    <div><small>PL 기반 교차 산정 (방법2 참고)</small><b>${kg(cr)}</b><span>${f(c.pl)} + ${f(c.tare)} + ${f(c.lash)} → 차이 ${crDiff.toFixed(1)}%</span></div>
+    <div class="${over?"warn":""}"><small>신고값 vs 재산정 / 허용오차</small><b class="${!c.submitted?"c-red":over?"c-red":"c-green"}">${c.submitted?`${dev>0?"+":""}${dev.toFixed(1)}%`:"미작성"} <span style="font-size:13px">/ ±5%</span></b><span>${c.submitted&&c.vgm.value>MAXG?`최대총중량 ${f(MAXG)}kg 초과`:"최대총중량 이내"}</span></div>`;
+  if(tk){
+    $("doc-cap").textContent=`계근표_${c.cntr}.pdf · p.1`;
+    $("doc").innerHTML=`<div class="doc"><div class="tt">계량증명서</div>
+      <div class="ln"><span>차량번호</span><span>부산 ○○바 ○○○○</span></div>
+      <div class="ln"><span>컨테이너</span><span class="mono">${c.cntr} / ${c.type}</span></div>
+      <div class="ln"><span>계량일시</span><span class="mono">${tk.at}</span></div>
+      <div class="ln"><span>총 중 량</span><span class="mono ${has("E4")?"box-r":""}"><b>${kg(tk.gross)}</b></span></div>
+      <div class="ln"><span>공차중량(차량·섀시)</span><span class="mono ${has("E4")?"box-b":""}"><b>${kg(tk.truck)}</b></span></div>
+      <div class="ln"><span>실 중 량</span><span class="mono"><b>${kg(tk.gross-tk.truck)}</b></span></div>
+      <div class="ft">계량기 검정 유효기간: 2027-03-31 · ○○계근소(가상)</div></div>`;
+  } else {
+    $("doc-cap").textContent=`VGM신고서_${c.cntr}_v${c.vgm.ver}.pdf · p.1`;
+    $("doc").innerHTML=`<div class="doc"><div class="tt">VGM 신고서</div>
+      <div class="ln"><span>컨테이너 번호</span><span class="mono">${c.vgm.cntr}</span></div>
+      <div class="ln"><span>검증된 총중량</span><span class="mono ${has("E3")||has("E5")?"box-r":""}"><b>${kg(c.vgm.value)}</b></span></div>
+      <div class="ln"><span>검증방법</span><span>${c.vgm.method||"(공란)"}</span></div>
+      <div class="ln"><span>서명권자</span><span class="${has("E6")?"box-r":""}">${c.vgm.signer}</span></div>
+      <div class="ln"><span>문서 버전</span><span class="mono ${has("E8")?"box-b":""}">v${c.vgm.ver}${c.latest>c.vgm.ver?` (메일함 최신 v${c.latest})`:""}</span></div>
+      <div class="ft">고시 서식 기준 · 화주 제출본(가상)</div></div>`;
+  }
+  const W=[];
+  if(c.resolved) W.push("정정본 재대조 결과 4개 문서가 모두 일치합니다. 수정 제출 후 접수 회신까지 확인했습니다.");
+  if(has("E4")) W.push(`VGM 신고값 <b>${kg(c.vgm.value)}</b>은 계근표의 <b>'총중량'(차량·섀시 포함)</b>과 정확히 같습니다.`,
+     `차량 공차 ${kg(tk.truck)} 차감 시 <b>${kg(rv.v)}</b>으로, PL 기반 산정값과 <b>${crDiff.toFixed(1)}%</b> 차이입니다.`,
+     `따라서 <b>차량중량 미차감 기재 오류</b> 가능성이 높으며${c.vgm.value>MAXG?`, 현재 값은 ${c.type} 최대총중량도 초과합니다`:""}.`);
+  else if(has("E2")) W.push(`신고값이 서류 기준 재산정값(${kg(rv.v)})과 <b>${dev.toFixed(1)}%</b> 차이로 허용오차 ±5%를 넘습니다.`);
+  if(has("E1")) W.push(`VGM 신고서의 컨테이너 번호 <b>${sp(c.vgm.cntr)}</b>는 체크디지트 검산값이 <b>${cdig(c.vgm.cntr.slice(0,10))}</b>여야 하므로 형식 오류입니다.`,
+     `Booking 반출 정보와 계근표는 모두 <b>${sp(c.cntr)}</b>로 일치합니다. 선사 시스템에서 'VGM 미제출'로 처리될 위험이 있습니다.`);
+  if(has("E3")) W.push(`방법2 신고값 <b>${kg(c.vgm.value)}</b>은 화물(${kg(c.pl)})과 고박재(${kg(c.lash)})의 합과 같습니다.`,
+     `공컨테이너 중량 <b>${kg(c.tare)}</b>(CSC 플레이트)이 빠진 것으로 보이며, 포함하면 <b>${kg(cr)}</b>입니다(현재 ${dev.toFixed(1)}%).`);
+  if(has("E5")) W.push(`서류끼리는 일치하지만, 동일 화주·품목 최근 ${c.hist.n}건 평균 ${kg(c.hist.avg)}보다 <b>+${Math.round((c.vgm.value-c.hist.avg)/c.hist.avg*100)}%</b> 무겁습니다(${c.hist.pct}).`,
+     "포장명세서의 수량·품목이 평소와 다른지 화주 확인을 권고합니다. 최종 판단은 담당자가 합니다.");
+  if(has("E6")) W.push(`VGM 신고서의 서명권자 칸에 <b>직위만 있고 성명이 없습니다</b>.`,"서명권자 성명은 고시 서식의 필수 기재 항목이라 선사 접수가 거부될 수 있습니다.");
+  if(has("E7")) W.push(`계근은 ${tk.at.slice(5).replace("-",".")}에 끝났지만 <b>VGM 신고서가 아직 작성되지 않았습니다</b>.`,
+     `이 화주의 서명 회신은 평균 <b>4.1시간</b> 걸려, 마감(${cutTxt(c.v)})까지 남은 ${leftTxt(hl)} 안에 끝나지 않을 가능성이 큽니다.`,
+     `계근표 기준 VGM은 ${kg(rv.v)}입니다. 신고서 사전기입본을 보내 서명만 받는 방식을 권합니다.`);
+  if(has("E8")) W.push(`메일함에 화주 정정본 <b>v${c.latest}</b>가 있지만 선사 포털에는 이전 버전 <b>v${c.vgm.ver}</b>이 제출된 상태입니다.`,"정정본으로 선사 수정 제출이 필요합니다.");
+  if(c.submitted&&!c.resolved&&ev.some(k=>["E1","E2","E3","E4","E6"].includes(k))) W.push(`VGM 값의 정정과 서명은 <b>화주(서명권자) 확인 후</b> 진행해야 합니다.`);
+  $("why").innerHTML=W.map(w=>`<li>${w}</li>`).join("");
+  const RB={E1:"ISO 6346 체크디지트 · 사내 규칙 R-03 '문서 간 컨테이너 번호 일치'",E2:"국내 고시 허용오차 ±5% · 컨테이너 최대총중량(CSC)",E3:"고시 방법2 산정 요건(컨테이너 자체 중량 포함)",E4:"사내 규칙 R-14 '계근표 총중량=VGM 동일값 경보'",E5:"이력 기반 이상탐지(동일 화주·품목 최근 30건)",E6:"고시 서식 필수 기재(검증방법·서명권자)",E7:"선사 VGM 마감 · 화주별 서명 회신 소요시간 이력",E8:"사내 규칙 R-21 '최신 정정본 제출 확인'"};
+  $("why-rule").innerHTML=ev.length?`근거 규칙: ${ev.map(k=>RB[k]).join(" · ")}<br>근거 문서: ${tk?"계근표 p.1 (총중량·공차중량 영역), ":""}${c.submitted?"VGM 신고서 p.1, ":""}PL p.2 · 설명 문장은 시연용 예시`:"재대조 통과 · 감사 로그에 판정 근거 보존";
+  $("go-act").textContent=c.resolved?"조치 이력 보기":has("E8")?"선사 수정제출 초안 보기":has("E7")?"화주 제출요청 초안 보기":has("E5")?"화주 확인요청 초안 보기":"화주 정정요청 초안 보기";
+  $("btn-fp").disabled=$("btn-tp").disabled=!!c.fb||!ev.length;
+  $("btn-tp").textContent=c.fb==="정탐"?"정탐 · 기록됨":"정탐으로 표시";
+  $("btn-fp").textContent=c.fb==="오탐"?"오탐 · 기록됨":"오탐으로 표시";
+}
+
+/* ===== 후속조치 ===== */
+const TABS=["화주 VGM 정정요청","선사 VGM 수정 제출","재계근 예약 안내","사내 보고"];
+const defaultTab=c=>evaluate(c).includes("E8")?1:0;
+function draft(c,t){
+  const ev=c.origCodes||evaluate(c), rv=recompute(c), cr=cross(c), vn=vName(c.v), sh=c.shipper, cut=cutTxt(c.v).replace("익일 ","");
+  const day=hLeft(c.v)<24?"오늘":"내일";
+  const named=c.vgm.signer&&!/공란/.test(c.vgm.signer);const signer=named?c.vgm.signer:"물류 담당자";
+  if(t===0){
+    let b=`${signer}님, 안녕하세요. 한빛로지스 수출서류팀 김○○입니다.\n${vn} 선적 예정인 <b>${c.cntr}(${c.type})</b>`;
+    if(ev.includes("E4")) b+=`의 VGM 신고값이 <mark>${kg(c.ticket.gross)}</mark>으로 접수되었습니다.\n첨부 계근표 확인 결과, 해당 값은 <b>차량·섀시가 포함된 '총중량'</b>이며, 공차중량 ${kg(c.ticket.truck)}을 차감한 <mark>실중량은 ${kg(rv.v)}</mark>입니다. 이는 Packing List 기준 산정값(화물 ${kg(c.pl)} + 컨테이너 ${kg(c.tare)} + 고박재 ${kg(c.lash)})과도 일치합니다.\n${c.ticket.gross>MAXG?`현재 신고값은 ${c.type} 최대총중량(${kg(MAXG)})을 초과하여 <b>그대로 제출 시 적재가 거부될 수 있습니다.</b>\n`:""}`;
+    else if(ev.includes("E1")) b+=`의 VGM 신고서에 컨테이너 번호가 <mark>${c.origCntr||c.vgm.cntr}</mark>로 기재되어 있습니다.\nBooking 반출 정보와 계근표의 번호는 <mark>${c.cntr}</mark>이며, 신고서 번호는 체크디지트가 맞지 않아 선사에서 'VGM 미제출'로 처리될 수 있습니다.\n`;
+    else if(ev.includes("E3")) b+=`의 VGM(방법2)이 <mark>${kg(c.pl+c.lash)}</mark>으로 접수되었습니다.\n화물 ${kg(c.pl)}과 고박재 ${kg(c.lash)}의 합과 같아, <b>공컨테이너 중량 ${kg(c.tare)}이 빠진 것</b>으로 보입니다. 포함하면 <mark>${kg(cr)}</mark>입니다.\n`;
+    else if(ev.includes("E6")) b+=`의 VGM 신고서에 <b>서명권자 성명이 비어 있습니다</b>(직위만 기재).\n서명권자 성명은 필수 기재 항목이라 선사 접수가 거부될 수 있습니다.\n`;
+    else if(ev.includes("E5")) b+=`의 VGM이 <mark>${kg(c.vgm.value)}</mark>으로 접수되었습니다.\n서류끼리는 일치하지만 같은 품목의 최근 평균(${kg(20040)})보다 크게 무거워, 수량·품목이 맞는지 한 번 확인 부탁드립니다. 맞다면 회신만 주시면 그대로 진행합니다.\n`;
+    else if(ev.includes("E7")) b+=`은 계근이 끝났지만 아직 VGM 신고서를 받지 못했습니다.\n계근표 기준 VGM(<mark>${kg(rv.v)}</mark>)을 미리 기입한 신고서를 첨부하오니, <b>확인 후 서명만</b> 해서 회신 부탁드립니다.\n`;
+    else b+=`의 VGM 정정본을 받았습니다. 선사 수정 제출을 진행하겠습니다.\n`;
+    if(ev.includes("E7")) b+=`<b>오늘 12:00까지</b> 회신해 주시면 선사 마감(${day} ${cut}) 전에 제출하겠습니다.\n`;
+    else if(!ev.includes("E5")&&!ev.includes("E8")) b+=`확인 후 정정된 VGM 신고서에 서명하여 <b>오늘 ${hLeft(c.v)<8?"12:00":"17:00"}까지</b> 회신해 주시면 선사 마감(${day} ${cut}) 전에 수정 제출하겠습니다.\n`;
+    b+=`감사합니다.`;
+    return {to:named?`${sh} 물류팀 ${signer} (VGM 서명권자)`:`${sh} 물류 담당자 (VGM 서명권자 앞)`,cc:"한빛로지스 수출서류팀 · 영업 담당 이○○",
+      subj:`[${ev.includes("E5")?"확인요청":ev.includes("E7")?"제출요청":"정정요청"}·${day} ${cut} 마감] ${c.bk} / ${c.cntr} VGM 확인 부탁드립니다`,body:b,
+      att:[...(c.ticket?[`계근표_${c.cntr}.pdf`]:[]),...(ev.includes("E5")?[]:["VGM신고서_정정양식(사전기입).pdf"]),"비교표.png"]};
+  }
+  if(t===1) return {to:`${c.v.name} 운항 선사 수출서류팀 (가상)`,cc:"한빛로지스 수출서류팀",subj:`[VGM 수정 제출] ${c.bk} / ${c.cntr} / ${vn}`,
+    body:`안녕하세요, 한빛로지스 수출서류팀입니다.\n${vn} 선적 건 <b>${c.cntr}</b>의 VGM을 ${ev.includes("E8")?`화주 정정본(v${c.latest})으로`:"화주가 확정한 정정값으로"} 수정 제출합니다.\n기존 제출본을 대체해 주시고, 접수 결과를 회신 부탁드립니다.\n${ev.includes("E8")?"":"※ 화주 서명본을 받은 뒤 발송됩니다.\n"}감사합니다.`,att:[`VGM신고서_${c.cntr}_v${Math.max(c.latest,c.vgm.ver+1)}.pdf`]};
+  const wt=ev.some(k=>["E2","E3","E4","E5"].includes(k));
+  if(t===2&&!wt) return {to:"—",cc:"—",subj:"재계근 안내 불필요",body:`이 건(${ev.join("·")})은 중량 불일치가 아니라서 재계근이 필요하지 않습니다.\n① 화주 VGM 정정요청 탭의 초안을 사용하세요.`,att:[],none:true};
+  if(t===2) return {to:`${sh} 물류팀 · ○○계근소(가상)`,cc:"한빛로지스 수출서류팀",subj:`[재계근 안내] ${c.cntr} / ${vn} · ${day} ${cut} 마감`,
+    body:`안녕하세요, 한빛로지스 수출서류팀입니다.\n<b>${c.cntr}</b>의 서류상 중량이 서로 맞지 않습니다. 실제 중량 확인이 어려우시면 재계근을 권해 드립니다.\n○○계근소(가상) 예약 가능 시간: <b>${day} 10:00 / 11:00</b>\n재계근 결과(계량증명서)를 받는 즉시 VGM을 다시 대조해 드립니다.\n감사합니다.`,att:["재계근_예약요청서.pdf"]};
+  return {to:"한빛로지스 수출서류팀장",cc:"영업 담당 이○○",subj:`[사내 보고] VGM 예외 ${c.bk} (${ev.join("·")})`,
+    body:`예외 #E-20261007-00${c.no} 보고드립니다.\n- 화주: ${sh} / 선박: ${vn} / 마감: ${day} ${cut}\n- 판정: ${ev.map(k=>FULL[k]).join(", ")} (AI 위험도 ${c.score})\n- 조치: ${TABS[defaultTab(c)]} ${c.sent?"발송 완료":"초안 작성"}, 회신 시 자동 재대조\n- 리스크: 미회신 시 선적 이월 가능 → 11:30 전화 확인, 12:00 영업 담당 공유`,att:[]};
+}
+function renderAct(){
+  const c=current;
+  $("h-ctx").textContent=`예외 #E-20261007-00${c.no} · ${sp(c.cntr)} · ${vName(c.v)}`;
+  $("tabs").innerHTML=TABS.map((t,i)=>`<button class="tab" role="tab" aria-selected="${c.tab===i}" data-i="${i}">${["①","②","③","④"][i]} ${t}</button>`).join("");
+  document.querySelectorAll(".tab").forEach(b=>{b.onclick=()=>{c.tab=+b.dataset.i;c.edit=null;renderAct();};});
+  const d=draft(c,c.tab);
+  $("mail").innerHTML=`<div class="hdr"><div>받는 사람</div><div>${d.to}</div><div>참조</div><div>${d.cc}</div><div>제목</div><div><b>${d.subj}</b></div></div>`+
+    (c.edit!=null?`<textarea id="edit-area" aria-label="메일 본문 직접 수정"></textarea>`:`<div class="body">${d.body}</div>`)+
+    (d.att.length?`<div class="att">${d.att.map(a=>`<span>📎 ${a}</span>`).join("")}</div>`:"");
+  if($("edit-area")){$("edit-area").value=c.edit;$("edit-area").oninput=e=>{c.edit=e.target.value;};}
+  const fin=c.sent||c.resolved;
+  $("btn-send").disabled=fin||!!d.none; $("btn-send").textContent=c.sent?"발송 완료":"승인 후 발송";
+  $("btn-edit").disabled=fin; $("btn-edit").textContent=c.edit!=null?"수정 완료":"직접 수정";
+  $("btn-hold").disabled=fin; $("btn-hold").textContent=c.held?"보류 해제":"보류";
+  const ev0=c.origCodes||evaluate(c);
+  const S=[
+    {s:"ok",t:`10.06 ${c.vgm.at?c.vgm.at.slice(6):c.ticket.at.slice(11)} · 수집`,p:c.vgm.at?"화주 VGM 신고서 메일 수신 → 문서 AI 추출 완료":"계근표 메일 수신 → 문서 AI 추출 완료 (VGM 신고서 미수신)"},
+    {s:"ok",t:"10.07 06:10 · 교차검증",p:`계근표·PL·Booking과 대조 → <b class="c-red">${ev0.join("·")} 예외</b>, 위험도 ${c.score}`},
+    {s:c.viewed?"ok":"",t:`${c.viewed?"08:42":"예정"} · 담당자 확인`,p:c.viewed?`김○○ 근거 확인${c.fb?`, '${c.fb}' 표시`:""}`:"담당자 근거 확인 대기"},
+    {s:c.sent?"ok":"now",t:"08:45 · AI 초안",p:`${TABS[defaultTab(c)]} 초안 생성${ev0.includes("E7")||ev0.includes("E4")||ev0.includes("E3")?" · 정정양식 사전기입":""}`},
+    {s:c.sent?"ok":"",t:`${c.sent?"08:47":"예정"} · 승인 후 발송`,p:c.sent?`담당자 승인·발송 완료 (${TABS[c.sentTab??c.tab]}), 회신 추적 중`:(c.held?"담당자가 보류함 · 사유 확인 후 재개":"담당자 승인 시 발송, 회신 추적 시작")},
+    {s:c.replied?"ok":"",t:`${c.replied?"11:40":"예정"} · 재대조`,p:c.replied?"정정 VGM 수신 → 4개 문서 자동 재대조 통과":`정정 VGM 수신 → 4개 문서 자동 재대조${c.sent?`<br><button class="btn" id="btn-reply" style="margin-top:6px">회신 수신 (시연)</button>`:""}`},
+    {s:c.resolved?"ok":"",t:`${c.resolved?"11:45":"예정"} · 제출 확인`,p:c.resolved?`기존 선사 포털/EDI로 수정 제출 → 접수 회신 대조 → <b class="c-green">종결</b>`:"기존 선사 포털/EDI로 수정 제출 → 접수 회신 대조 후 종결"}
+  ];
+  $("steps").innerHTML=S.map(x=>`<li><span class="dot ${x.s}"></span><div><small>${x.t}</small><p>${x.p}</p></div></li>`).join("");
+  if($("btn-reply")) $("btn-reply").onclick=reply;
+  const late=CASES.filter(x=>!x.resolved&&x.lateRisk);
+  const left1130=hLeft(c.v,new Date("2026-10-07T11:30:00+09:00"));
+  const first=c.resolved?{b:"종결 · 수정 제출 완료",m:`${c.cntr} 재대조 통과, 선사 접수를 확인했습니다.`}
+    :c.sent?{b:`회신 대기 · 마감 ${leftTxt(left1130)}`,m:`${c.cntr} 화주 정정 VGM 미회신. 전화 확인을 권장합니다.`}
+    :{b:"승인 대기",m:`${c.cntr} ${TABS[c.tab]} 초안이 준비됐습니다.`};
+  $("phone").innerHTML=`<div class="clk">${c.sent||c.resolved?"11:30":"08:45"}</div><div class="dt">10월 7일 수요일</div>
+    <div class="nt"><div class="h"><i>VX</i>VGM-X · 지금</div><b>${first.b}</b>${first.m}</div>
+    ${late.length?`<div class="nt"><div class="h"><i>VX</i>VGM-X · 12분 전</div><b>미제출 예측 ${late.length}건</b>${vName(late[0].v)}(${cutTxt(late[0].v)}) — ${late[0].cntr}${late.length>1?` 외 ${late.length-1}건`:""} 서명 회신 지연</div>`:""}
+    <div class="nt"><div class="h"><i>VX</i>VGM-X · 1시간 전</div><b>자동 통과 ${NORMAL.length}건</b>오늘 마감분 정합성 확인 완료</div>`;
+}
+function reply(){
+  const c=current, ev=evaluate(c);
+  if(ev.includes("E7")){c.submitted=true;c.vgm={cntr:c.cntr,value:recompute(c).v,method:"방법1",signer:"오○○ 과장",at:"10.07 11:35",ver:1};c.latest=1;}
+  if(ev.includes("E1")) c.vgm.cntr=c.cntr;
+  if(ev.includes("E3")) c.vgm.value=cross(c);
+  if(ev.includes("E4")||ev.includes("E2")) c.vgm.value=recompute(c).v;
+  if(ev.includes("E6")) c.vgm.signer="문○○ 과장";
+  if(ev.includes("E8")) c.vgm.ver=c.latest;
+  if(ev.includes("E5")) c.hist=null;
+  if(!ev.includes("E8")&&!ev.includes("E7")) {c.vgm.ver+=1;c.latest=c.vgm.ver;}
+  c.replied=true;
+  const after=evaluate(c);
+  if(!after.length){c.resolved=true;toast(`재대조 통과 · ${ev.join(", ")} 예외가 종결되었습니다. (정정값은 화주가 확정)`);}
+  else toast("재대조 후에도 남은 예외가 있습니다: "+after.join(", "));
+  renderAct();
+}
+
+/* ===== 보조 화면 (기획서 2.2·2.4·2.6 연계) ===== */
+const EXTRA_CTX={cal:"선박별 VGM 마감과 처리 현황",inbox:"밤사이 자동 수집된 문서와 추출 신뢰도",policy:"판정 규칙과 RAG 지식베이스 (기획서 2.2 ④ 국내 특화)",kpi:"성과 지표 (기획서 2.6) · 시연 데이터 기준",fb:"정탐·오탐 피드백과 학습 루프 (기획서 2.4 ②)",link:"기존 시스템 연계 상태 (기획서 2.4 ③)"};
+const pct=(a,b)=>b?(a/b*100).toFixed(1)+"%":"—";
+const EXTRA={
+ cal(){
+  const rows=Object.values(V).map(v=>{const ex=CASES.filter(c=>c.v===v&&evaluate(c).length).length;const late=CASES.filter(c=>c.v===v&&!c.resolved&&c.lateRisk).length;const h=hLeft(v);
+   return `<tr><td><b>${vName(v)}</b></td><td>${hLeft(v)<24?"10.07(수)":"10.08(목)"} ${cutTxt(v).replace("익일 ","")}</td><td class="${h<8?"left-r":""}">${leftTxt(h)}</td><td class="mono">${v.total}</td><td class="mono">${v.total-ex}</td><td>${ex?`<span class="etag r">예외 ${ex}</span>`:`<span class="etag g">없음</span>`}</td><td>${late?`<span class="etag o">${late}건</span>`:"—"}</td><td><button class="btn" data-goto-v="${Object.keys(V).find(k=>V[k]===v)}">예외 보기</button></td></tr>`;}).join("");
+  return `<section class="card"><h2>VGM 마감 일정 <small>오늘~내일 · 부산신항 출항분</small></h2><div class="tw"><table><thead><tr><th>선명·항차</th><th>VGM 마감</th><th>남은 시간</th><th>대상</th><th>확인 완료</th><th>예외</th><th>미제출 예측</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="note-s">마감 시각은 선사 공지·포털에서 자동 수집합니다. 마감 3시간 전까지 미회신 건은 모바일 경보, 2시간 전은 영업 담당자에게 공유합니다. 선박·일정은 가상 데이터입니다.</div></section>`;},
+ inbox(){
+  const docs=[];
+  CASES.forEach(c=>{
+    docs.push([`Booking_${c.bk}.pdf`,"Booking 확인서","선사 포털",.99,c]);
+    docs.push([`PL_${c.bk}.xlsx`,"Packing List","메일 첨부",.98,c]);
+    if(c.ticket) docs.push([`계근표_${c.cntr}.pdf`,"계근표(스캔)","메일 첨부",c.no===2?.83:.96,c]);
+    if(c.vgm.at) docs.push([`VGM신고서_${c.cntr}_v${c.latest>1?c.latest:c.vgm.ver}.pdf`,"VGM 신고서","메일 첨부",c.no===7?.91:.97,c]);
+  });
+  return `<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+   <div class="kpi"><span class="lab">밤사이 수신 문서</span><span class="val">412<small>개</small></span><span class="sub">128건 컨테이너로 자동 묶음</span></div>
+   <div class="kpi"><span class="lab">문서 종류</span><span class="val" style="font-size:16px;line-height:1.6">Booking 128 · PL 128<br>VGM 신고서 127 · 계근표 29</span><span class="sub">예시 수치</span></div>
+   <div class="kpi"><span class="lab">추출 신뢰도 평균</span><span class="val c-green">0.96</span><span class="sub">예시 수치</span></div>
+   <div class="kpi"><span class="lab">사람 확인 필요</span><span class="val c-orange">1<small>개</small></span><span class="sub">신뢰도 0.85 미만 → 사람 확인 전환</span></div></div>
+   <section class="card"><h2>예외 건 관련 문서 <small>문서 AI 추출 결과 · 행을 누르면 교차대조로 이동</small></h2><div class="tw"><table><thead><tr><th>파일명</th><th>종류</th><th>수신 경로</th><th>추출 신뢰도</th><th>연결 건</th></tr></thead><tbody>${
+    docs.map(d=>`<tr class="q" data-no="${d[4].no}" tabindex="0"><td class="mono" style="font-size:12px">${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td><td>${d[3]<.85?`<span class="etag o">${d[3].toFixed(2)} · 사람 확인</span>`:`<span class="c-green" style="font-weight:700">${d[3].toFixed(2)}</span>`}</td><td class="mono" style="font-size:12px">${sp(d[4].cntr)}</td></tr>`).join("")}</tbody></table></div>
+   <div class="note-s">파일명·신뢰도는 시연용 예시입니다. 실서비스에서는 메일·포털·EDI로 들어온 문서를 분류하고 컨테이너·부킹번호로 한 건(Shipment Case)에 묶습니다.</div></section>`;},
+ policy(){
+  const P=[["허용오차","신고 총중량은 실제 총중량 대비 ±5% 이내","해양수산부 고시 「컨테이너 화물의 총중량 검증 등에 관한 기준」","E2"],
+   ["제출 시기","선박 접안 예정 24시간 전까지 (근거리 항로는 접안 전)","같은 고시 · 터미널 시행 안내","E7"],
+   ["검증 방법","방법1: 적입 컨테이너 통째 계근 / 방법2: 화물·포장재·고박재 + 컨테이너 자체 중량 합산","SOLAS 제VI장 제2규칙 · IMO MSC.1/Circ.1475","E3 · E4"],
+   ["최대총중량","컨테이너 CSC 플레이트의 최대총중량 초과 불가","SOLAS · CSC 협약","E2"],
+   ["기재 항목","검증방법과 서명권자(성명) 기재","고시 서식","E6"],
+   ["번호 형식","컨테이너 번호 11자리, 마지막 자리는 체크디지트","ISO 6346","E1"]];
+  const IN=[["R-03","문서 간 컨테이너 번호 일치","Booking 반출 정보 · 계근표 · VGM 신고서의 번호가 다르면 예외","E1"],
+   ["R-14","계근표 총중량 = VGM 동일값 경보","VGM 값이 계근표 '총중량(차량 포함)'과 같으면 차량 미차감 의심","E4"],
+   ["R-21","최신 정정본 제출 확인","메일함 최신 버전과 선사 제출 버전이 다르면 예외","E8"]];
+  const CR=[["HANBIT PIONEER 운항 선사(가상)","접안 예정 24시간 전 (이번 항차 10.07 14:00)","선사 포털 · EDI(VERMAS)","포털에서 재제출, 마감 후 정정은 담당자 승인 필요"],
+   ["SEA AURORA 운항 선사(가상)","접안 예정 24시간 전 (이번 항차 10.07 14:00)","EDI(VERMAS)","EDI 재전송, 접수 회신으로 확인"],
+   ["BLUE HARMONY 운항 선사(가상)","접안 예정 24시간 전 (이번 항차 10.08 12:30)","선사 포털","포털 수정 후 메일로 정정 사유 통보"]];
+  return `<section class="card"><h2>공통 규정 <small>판정 근거로 쓰는 법정·국제 기준</small></h2><div class="tw"><table><thead><tr><th>항목</th><th>기준</th><th>출처</th><th>적용 예외</th></tr></thead><tbody>${P.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td><span class="etag b">${r[3]}</span></td></tr>`).join("")}</tbody></table></div></section>
+   <section class="card"><h2>사내 규칙 <small>포워더가 직접 정하는 판정 규칙 (예시)</small></h2><div class="tw"><table><thead><tr><th>규칙</th><th>이름</th><th>내용</th><th>적용 예외</th></tr></thead><tbody>${IN.map(r=>`<tr><td class="mono">${r[0]}</td><td><b>${r[1]}</b></td><td>${r[2]}</td><td><span class="etag b">${r[3]}</span></td></tr>`).join("")}</tbody></table></div></section>
+   <section class="card"><h2>선사별 VGM 정책 <small>가상 선사 예시 · 실서비스에서는 각 선사 공지를 RAG 지식으로 등록</small></h2><div class="tw"><table><thead><tr><th>선사</th><th>VGM 마감</th><th>제출 채널</th><th>정정 제출 방법</th></tr></thead><tbody>${CR.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join("")}</tbody></table></div>
+   <div class="note-s">법정 기준처럼 결정적인 판정은 규칙엔진이 하고, AI(LLM)는 이 지식을 근거로 설명·초안을 작성합니다. 고시·선사 정책이 바뀌면 이 화면에서 규칙을 갱신합니다.</div></section>`;},
+ kpi(){
+  const total=NORMAL.length+CASES.length, ex=exceptions().length, done=CASES.filter(c=>c.resolved).length;
+  const tp=CASES.filter(c=>c.fb==="정탐").length, fp=CASES.filter(c=>c.fb==="오탐").length;
+  const H={tp:41,fp:7};
+  const rows=[["자동 통과율","사람 검토 없이 정상 처리된 건 비율","80% 이상",`${pct(NORMAL.length,total)} (${NORMAL.length}/${total})`,"ok"],
+   ["예외 정밀도","AI가 선별한 예외 중 실제 문제 비율","70% 이상",`${pct(H.tp+tp,H.tp+H.fp+tp+fp)} (최근 7일 예시 ${H.tp+H.fp}건${tp+fp?` + 오늘 ${tp+fp}건`:""})`,"ok"],
+   ["예외 탐지 재현율","실제 문제 건 중 AI가 선별한 비율","90% 이상","PoC에서 담당자 검수 라벨로 측정","wait"],
+   ["문서 대조 처리시간","건당 VGM 관련 문서 확인·대조 시간","50% 이상 단축","예시: 기준선 6.8분 → 2.4분","ex"],
+   ["핵심 필드 추출 정확도","컨테이너번호·중량·검증방법·일시 정확 추출 비율","95% 이상","PoC 표본 검수로 측정","wait"],
+   ["마감 후 정정·이월","VGM 사유 마감 후 정정·선적 이월 건수","30% 이상 감소",`오늘 예외 ${CASES.length}건 중 마감 전 종결 ${done}건`,done===CASES.length?"ok":"wait"]];
+  const T=[["10.01",8],["10.02",7],["10.03",9],["10.04",6],["10.05",8],["10.06",7],["10.07",ex+done]];
+  return `<section class="card"><h2>성과 지표 <small>기획서 2.6의 KPI · 목표는 가설, 값은 시연 데이터</small></h2><div class="tw"><table><thead><tr><th>KPI</th><th>정의</th><th>목표(안)</th><th>현재 값</th><th>상태</th></tr></thead><tbody>${
+   rows.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]==="ok"?`<span class="etag g">목표 충족</span>`:r[4]==="ex"?`<span class="etag o">예시값</span>`:`<span class="etag b">측정 예정</span>`}</td></tr>`).join("")}</tbody></table></div>
+   <div class="note-s">'예시'로 표시한 값은 화면 설명용 가상 수치입니다. 실제 값은 PoC에서 기준선(도입 전 처리시간·정정 건수)을 먼저 잰 뒤 비교합니다.</div></section>
+   <div class="xgrid"><section class="card"><h2>최근 7일 예외 건수 <small>예시 통계</small></h2><div class="trend">${T.map((t,i)=>`<div class="${i===6?"today":""}"><b>${t[1]}</b><i style="height:${t[1]/10*100}px"></i>${t[0]}</div>`).join("")}</div></section>
+   <section class="card"><h2>오늘 처리 현황</h2><div class="dist">
+    <div class="row"><span>자동 통과</span><span class="b" style="width:${NORMAL.length/total*100}%"></span><span class="n">${NORMAL.length}</span></div>
+    <div class="row"><span>조치 후 종결</span><span class="b" style="width:${Math.max(1,done/total*100)}%;background:var(--green)"></span><span class="n">${done}</span></div>
+    <div class="row"><span>남은 예외</span><span class="b" style="width:${Math.max(1,ex/total*100)}%;background:var(--red)"></span><span class="n">${ex}</span></div></div>
+    <div class="note-s">예외 큐에서 조치를 끝낼 때마다 이 숫자가 바뀝니다.</div></section></div>`;},
+ fb(){
+  const lab=CASES.filter(c=>c.fb);
+  return `<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+   <div class="kpi"><span class="lab">오늘 정탐 표시</span><span class="val c-green">${CASES.filter(c=>c.fb==="정탐").length}<small>건</small></span><span class="sub">AI 판정이 맞았던 건</span></div>
+   <div class="kpi"><span class="lab">오늘 오탐 표시</span><span class="val c-orange">${CASES.filter(c=>c.fb==="오탐").length}<small>건</small></span><span class="sub">AI 판정이 틀렸던 건</span></div>
+   <div class="kpi"><span class="lab">아직 표시 안 함</span><span class="val">${CASES.length-lab.length}<small>건</small></span><span class="sub">교차대조 화면에서 표시</span></div></div>
+   <section class="card"><h2>오늘 예외 판정 피드백 <small>행을 누르면 교차대조로 이동해 표시할 수 있어요</small></h2><div class="tw"><table><thead><tr><th>컨테이너</th><th>판정</th><th>AI 위험도</th><th>담당자 피드백</th><th>반영 대상</th></tr></thead><tbody>${
+    CASES.map(c=>{const codes=c.origCodes||evaluate(c);return `<tr class="q" data-no="${c.no}" tabindex="0"><td class="mono">${sp(c.cntr)}</td><td>${codes.map(k=>`<span class="etag ${tagCls(k)}">${k}</span>`).join(" ")||"—"}</td><td class="mono">${c.score}</td><td>${c.fb?`<span class="etag ${c.fb==="정탐"?"g":"o"}">${c.fb}</span>`:`<span style="color:var(--ink-2)">미표시</span>`}</td><td>${codes.some(k=>["E5","E7"].includes(k))?"이상탐지·예측 모델 학습 데이터":"규칙 임계값 점검"}</td></tr>`;}).join("")}</tbody></table></div></section>
+   <section class="card"><h2>임계값 조정 제안 <small>주 1회 담당자 검토 후 승인 · 예시</small></h2><div class="tw"><table><thead><tr><th>규칙</th><th>현재 값</th><th>최근 7일 피드백</th><th>제안</th></tr></thead><tbody>
+    <tr><td><span class="etag o">E5</span> 이상 중량</td><td>이력 평균 대비 ±30%</td><td>정탐 2 · 오탐 1</td><td>오탐 1건이 계절 물량 증가 → 화주별 계절 보정 검토</td></tr>
+    <tr><td><span class="etag r">E7</span> 마감 리스크</td><td>마감 8시간 전 미제출</td><td>정탐 9 · 오탐 2</td><td>유지</td></tr>
+    <tr><td><span class="etag r">E2</span> 중량 불일치</td><td>±5% (법정 기준)</td><td>정탐 14 · 오탐 0</td><td>법정 기준이라 변경하지 않음</td></tr></tbody></table></div>
+   <div class="note-s">법정 기준(±5% 등)은 피드백으로 바꾸지 않고, AI가 판단하는 이상탐지·예측 기준만 조정합니다. 조정은 자동 적용하지 않고 담당자가 승인합니다.</div></section>`;},
+ link(){
+  const C=[["ok","메일 수집","수출서류팀 공용 메일함 · 첨부 자동 수집 · 마지막 수집 06:05"],
+   ["ok","선사 포털 다운로드","가상 선사 3곳 · 예약 확인서·마감 공지 수집"],
+   ["ok","EDI (SMDG VERMAS)","VGM 제출 회신 수신 → 제출본·접수 결과 대조"],
+   ["warn","포워더 ERP / TMS","초기: 엑셀 업로드 · 다음 단계: API 연계"],
+   ["off","DCSA VGM API","표준 스키마 매핑 준비 · 선사 API 개통 시 연결"],
+   ["ok","알림","모바일 앱 푸시 · 메일 · 메신저(사내)"]];
+  return `<div class="xgrid">${C.map(c=>`<section class="card conn"><b><span class="${c[0]}-dot"></span>${c[1]}</b><span>${c[2]}</span><span style="font-weight:700;color:var(--${c[0]==="ok"?"green":c[0]==="warn"?"orange":"ink-2"})">${c[0]==="ok"?"연결됨":c[0]==="warn"?"부분 연결":"준비 중"}</span></section>`).join("")}</div>
+   <section class="card"><h2>보안·개인정보 설정</h2><div class="tw"><table><tbody>
+    <tr><td><b>외부 LLM 전송 시 마스킹</b></td><td>서명권자 성명·연락처·화주 거래정보 가림</td><td><span class="etag g">켜짐</span></td></tr>
+    <tr><td><b>사내 설치형 모델 우선</b></td><td>해양 특화 LLM 실증 결과에 따라 전환 검토</td><td><span class="etag b">검토 중</span></td></tr>
+    <tr><td><b>AI 작성 표시</b></td><td>AI가 쓴 초안·판정에 'AI 초안' 표시</td><td><span class="etag g">켜짐</span></td></tr>
+    <tr><td><b>감사 로그 보존</b></td><td>판정 근거·승인·발송 이력 자동 보존</td><td><span class="etag g">켜짐</span></td></tr></tbody></table></div>
+   <div class="note-s">기존 제출 채널(선사 포털·EDI·중계망)은 그대로 쓰고, VGM-X는 그 위에서 수집·대조만 합니다. 연결 상태는 시연용 표시입니다.</div></section>`;}
+};
+function bindExtra(){
+  document.querySelectorAll("#v-extra tr.q").forEach(tr=>{const go=()=>openCase(+tr.dataset.no);tr.onclick=go;tr.onkeydown=e=>{if(e.key==="Enter")go();};});
+  document.querySelectorAll("#v-extra [data-goto-v]").forEach(b=>{b.onclick=()=>{filterIdx=FILTERS.indexOf(V[b.dataset.gotoV]);$("btn-filter").textContent="필터: "+FILTERS[filterIdx].name;show("dash");};});
+}
+
+/* ===== 화면 전환 ===== */
+const TITLES={dash:"예외관리 대시보드",case:"건별 교차대조",act:"후속조치 · 이력",cal:"마감 캘린더",inbox:"수신 문서함",policy:"선사별 VGM 정책",kpi:"예외 통계 · KPI",fb:"AI 피드백 관리",link:"연계 설정 (ERP · EDI)"};
+function setCurrent(c){current=c;if(!c.origCodes){c.origCodes=evaluate(c);c.origCntr=c.vgm.cntr;}}
+function show(v){
+  view=v; const main3=["dash","case","act"];
+  main3.forEach(k=>{$("v-"+k).hidden=k!==v;});
+  $("v-extra").hidden=main3.includes(v);
+  document.querySelectorAll(".nb[data-view]").forEach(b=>b.setAttribute("aria-current",b.dataset.view===v?"page":"false"));
+  $("h-title").textContent=TITLES[v];
+  if(v==="dash"){$("h-ctx").textContent="2026.10.07(수) 08:30 기준 · 부산신항 출항분";renderDash();}
+  else if(v==="case") renderCase();
+  else if(v==="act") renderAct();
+  else {$("h-ctx").textContent=EXTRA_CTX[v];$("v-extra").innerHTML=EXTRA[v]();bindExtra();}
+  window.scrollTo({top:0});
+}
+function openCase(no){const c=CASES.find(x=>x.no===no);setCurrent(c);if(!c.sent&&!c.resolved)c.tab=defaultTab(c);show("case");}
+
+document.querySelectorAll(".nb[data-view]").forEach(b=>{b.onclick=()=>{setCurrent(current||CASES[0]);show(b.dataset.view);};});
+$("go-act").onclick=()=>show("act");
+$("btn-tp").onclick=()=>{current.fb="정탐";toast("'정탐'으로 기록했습니다. 규칙·모델 개선 데이터로 쓰입니다.");renderCase();};
+$("btn-fp").onclick=()=>{current.fb="오탐";toast("'오탐'으로 기록했습니다. 규칙 임계값 재검토에 쓰입니다.");renderCase();};
+$("btn-assign").onclick=()=>toast("담당자를 '수출서류팀 김○○'로 지정했습니다. (시연)");
+$("btn-send").onclick=()=>{const c=current;c.sent=true;c.sentTab=c.tab;c.held=false;c.edit=null;toast("승인했습니다. 시연이라 실제 메일은 발송되지 않습니다.");renderAct();};
+$("btn-edit").onclick=()=>{const c=current;if(c.edit!=null){c.edit=null;toast("수정 내용을 반영했습니다. (시연)");}else{const tmp=document.createElement("div");tmp.innerHTML=draft(c,c.tab).body;c.edit=tmp.textContent;}renderAct();};
+$("btn-hold").onclick=()=>{const c=current;c.held=!c.held;toast(c.held?"보류했습니다. 대시보드 상태가 '보류'로 바뀝니다.":"보류를 해제했습니다.");renderAct();};
+$("btn-filter").onclick=()=>{filterIdx=(filterIdx+1)%FILTERS.length;$("btn-filter").textContent="필터: "+(FILTERS[filterIdx]?FILTERS[filterIdx].name:"전체 선사");renderDash();};
+$("btn-sort").onclick=()=>{sortByType=!sortByType;$("btn-sort").textContent=sortByType?"위험도순 보기":"유형별 보기";renderDash();};
+$("search").oninput=e=>{query=e.target.value.trim();if(view!=="dash")show("dash");else renderDash();};
+$("btn-reset").onclick=()=>{reset();filterIdx=0;sortByType=false;query="";$("search").value="";$("btn-filter").textContent="필터: 전체 선사";$("btn-sort").textContent="유형별 보기";show("dash");toast("처음 상태로 되돌렸습니다.");};
+
+reset(); show("dash");
+})();
+</script>
+
+</body>
+</html>
